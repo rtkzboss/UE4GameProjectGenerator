@@ -31,4 +31,5 @@ private:
 	static void DiscoverModules(const FString& SourceDirectory, TSet<FString>& OutModulesFound);
 	static FString GetIncludePathForObject(UObject* Object);
 	static bool GetSpecialObjectIncludePath(UObject* Object, FString& OutIncludePath);
+	static void SanitizePlatforms(TArray<FString>& Platforms);
 };

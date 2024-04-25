@@ -360,9 +360,14 @@ int32 UProjectGeneratorCommandlet::MainInternal(FCommandletRunParams& Params) {
 	FProjectDescriptor NewProjectDescriptor = Params.ProjectFile;
 
 	//Remove all of the modules that we have not copied
-	NewProjectDescriptor.Modules.RemoveAll([&](const FModuleDescriptor& ModuleDescriptor) {
+	NewProjectDescriptor.Modules.RemoveAll([&](FModuleDescriptor& ModuleDescriptor) {
 		const FString ModuleName = ModuleDescriptor.Name.ToString();
-			
+
+		ModuleDescriptor.AdditionalDependencies.RemoveAll([&](FString const& DepName) {
+			return !EngineModules.Contains(DepName) &&
+				!AllGameModulesProcessed.Contains(DepName);
+		});
+
 		//Keep engine module references, even if we have not copied them
 		return !EngineModules.Contains(ModuleName) &&
 			!AllGameModulesProcessed.Contains(ModuleName);
@@ -372,9 +377,9 @@ int32 UProjectGeneratorCommandlet::MainInternal(FCommandletRunParams& Params) {
 	NewProjectDescriptor.Plugins.RemoveAll([&](FPluginReferenceDescriptor& PluginReference) {
 		const FString PluginName = PluginReference.Name;
 
-		//Strip out whitelisted platforms that we do not know about, Stadia in particular
-		//TODO seems to be engine patch to support stadia target? Is it a backport from UE4.26?
-		PluginReference.WhitelistPlatforms.Remove(TEXT("Stadia"));
+		SanitizePlatforms(PluginReference.WhitelistPlatforms);
+		SanitizePlatforms(PluginReference.BlacklistPlatforms);
+		SanitizePlatforms(PluginReference.SupportedTargetPlatforms);
 		
 		//Keep engine plugins references
 		return !EnginePlugins.Contains(PluginName) &&
@@ -403,6 +408,14 @@ int32 UProjectGeneratorCommandlet::MainInternal(FCommandletRunParams& Params) {
 
 	UE_LOG(LogProjectGeneratorCommandlet, Display, TEXT("Wrote project data to %s"), *Params.OutputDirectory);
 	return 0;
+}
+
+void UProjectGeneratorCommandlet::SanitizePlatforms(TArray<FString>& Platforms) {
+	//Strip out whitelisted platforms that we do not know about, Stadia in particular
+	//TODO seems to be engine patch to support stadia target? Is it a backport from UE4.26?
+	Platforms.Remove(TEXT("Stadia"));
+	Platforms.Remove(TEXT("XSX"));
+	Platforms.Remove(TEXT("PS5"));
 }
 
 void UProjectGeneratorCommandlet::GenerateTargetFile(FCommandletRunParams& Params, const FString& TargetFileName, const TSet<FString>& GameModuleNames) {
