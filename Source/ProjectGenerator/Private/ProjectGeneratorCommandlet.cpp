@@ -450,28 +450,25 @@ void UProjectGeneratorCommandlet::DiscoverPlugins(const FString& PluginDirectory
 	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
 
 	TFunction<bool(const TCHAR*, bool)> DirectoryIterator = [&](const TCHAR* Filename, bool bIsDirectory) {
-		//Only interested in actual directories
+		//Only interested in files
 		if (bIsDirectory) {
-			//Check whenever the plugin file is present in the directory
-			const FString DirectoryName = FPaths::GetBaseFilename(Filename);
-			const FString PluginFilePath = FString(Filename) / DirectoryName += TEXT(".uplugin");
-
-			//Plugin file has been found at that directory, record it and continue iteration
-			if (PlatformFile.FileExists(*PluginFilePath)) {
+			//Recursively iterate the directory, unless it's Saved
+			if (FPaths::GetBaseFilename(Filename) != TEXT("Saved")) {
+				PlatformFile.IterateDirectory(Filename, DirectoryIterator);
+			}
+		} else {
+			FString PluginDir, PluginName, PluginExt;
+			FPaths::Split(Filename, PluginDir, PluginName, PluginExt);
+			if (PluginExt == TEXT("uplugin")) {
 				//Record modules that belong to the plugin
 				TSet<FString> PluginModules;
-				const FString PluginSourceDir = FString(Filename) / TEXT("Source");
+				const FString PluginSourceDir = PluginDir / TEXT("Source");
 
 				if (PlatformFile.DirectoryExists(*PluginSourceDir)) {
 					DiscoverModules(PluginSourceDir, PluginModules);
 				}
-			
-				OutPluginsFound.Add(DirectoryName, PluginModules);
-				return true;
-			}
-			//Otherwise recursively iterate the directory, unless it's Saved
-			if (DirectoryName != TEXT("Saved")) {
-				PlatformFile.IterateDirectory(Filename, DirectoryIterator);
+
+				OutPluginsFound.Add(PluginName, PluginModules);
 			}
 		}
 		return true;
