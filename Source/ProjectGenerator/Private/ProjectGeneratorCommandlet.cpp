@@ -331,19 +331,25 @@ int32 UProjectGeneratorCommandlet::MainInternal(FCommandletRunParams& Params) {
 		const FString NewPluginFileLocation = GameImpliedPluginFileLocations.FindChecked(PluginName);
 		FPluginDescriptor NewPluginDescriptor = ManifestEntry.Descriptor;
 
+		SanitizePlatforms(NewPluginDescriptor.SupportedTargetPlatforms);
+
 		//Cleanup any modules that we have not copied
-		NewPluginDescriptor.Modules.RemoveAll([&](const FModuleDescriptor& ModuleDescriptor) {
+		NewPluginDescriptor.Modules.RemoveAll([&](FModuleDescriptor& ModuleDescriptor) {
 			const FString ModuleName = ModuleDescriptor.Name.ToString();
-			
+
+			SanitizeModulePlatforms(ModuleDescriptor);
+
 			//Keep engine module references, even if we have not copied them
 			return !EngineModules.Contains(ModuleName) &&
 				!AllGameModulesProcessed.Contains(ModuleName);
 		});
 
 		//Cleanup any plugin dependencies that physically do not exist in the project
-		NewPluginDescriptor.Plugins.RemoveAll([&](const FPluginReferenceDescriptor& PluginDescriptor) {
+		NewPluginDescriptor.Plugins.RemoveAll([&](FPluginReferenceDescriptor& PluginDescriptor) {
 			const FString ReferencedPluginName = PluginDescriptor.Name;
-			
+
+			SanitizePluginPlatforms(PluginDescriptor);
+
 			return !GameImpliedPluginFileLocations.Contains(ReferencedPluginName) &&
 				!EnginePlugins.Contains(ReferencedPluginName);
 		});
@@ -368,6 +374,8 @@ int32 UProjectGeneratorCommandlet::MainInternal(FCommandletRunParams& Params) {
 				!AllGameModulesProcessed.Contains(DepName);
 		});
 
+		SanitizeModulePlatforms(ModuleDescriptor);
+
 		//Keep engine module references, even if we have not copied them
 		return !EngineModules.Contains(ModuleName) &&
 			!AllGameModulesProcessed.Contains(ModuleName);
@@ -377,14 +385,14 @@ int32 UProjectGeneratorCommandlet::MainInternal(FCommandletRunParams& Params) {
 	NewProjectDescriptor.Plugins.RemoveAll([&](FPluginReferenceDescriptor& PluginReference) {
 		const FString PluginName = PluginReference.Name;
 
-		SanitizePlatforms(PluginReference.WhitelistPlatforms);
-		SanitizePlatforms(PluginReference.BlacklistPlatforms);
-		SanitizePlatforms(PluginReference.SupportedTargetPlatforms);
-		
+		SanitizePluginPlatforms(PluginReference);
+
 		//Keep engine plugins references
 		return !EnginePlugins.Contains(PluginName) &&
 			!AllGamePluginsProcessed.Contains(PluginName);
 	});
+
+	//SanitizePlatformNames(NewProjectDescriptor.TargetPlatforms);
 
 	//Force references to the engine modules that do not exist in the engine now
 	for (const FString& ForcedEngineModule : EngineModulesForcedToBeGameModules) {
@@ -410,6 +418,15 @@ int32 UProjectGeneratorCommandlet::MainInternal(FCommandletRunParams& Params) {
 	return 0;
 }
 
+void UProjectGeneratorCommandlet::SanitizePluginPlatforms(FPluginReferenceDescriptor& Plugin) {
+	SanitizePlatforms(Plugin.WhitelistPlatforms);
+	SanitizePlatforms(Plugin.BlacklistPlatforms);
+	SanitizePlatforms(Plugin.SupportedTargetPlatforms);
+}
+void UProjectGeneratorCommandlet::SanitizeModulePlatforms(FModuleDescriptor& Module) {
+	SanitizePlatforms(Module.WhitelistPlatforms);
+	SanitizePlatforms(Module.BlacklistPlatforms);
+}
 void UProjectGeneratorCommandlet::SanitizePlatforms(TArray<FString>& Platforms) {
 	//Strip out whitelisted platforms that we do not know about, Stadia in particular
 	//TODO seems to be engine patch to support stadia target? Is it a backport from UE4.26?
